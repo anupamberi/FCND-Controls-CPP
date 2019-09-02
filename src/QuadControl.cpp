@@ -7,6 +7,7 @@
 #include "Trajectory.h"
 #include "BaseController.h"
 #include "Math/Mat3x3F.h"
+#include <iostream>
 
 #ifdef __PX4_NUTTX
 #include <systemlib/param/param.h>
@@ -69,13 +70,23 @@ VehicleCommand QuadControl::GenerateMotorCommands(float collThrustCmd, V3F momen
   // You'll need the arm length parameter L, and the drag/thrust ratio kappa
 
   ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
+  float lPerpendicular = L / sqrtf(2.f);
+  float t1 = momentCmd.x / lPerpendicular;
+  float t2 = momentCmd.y / lPerpendicular;
+  float t3 = - momentCmd.z / kappa; // Thrust is negative in the upward direction
+  float fTotal = collThrustCmd;
 
-  cmd.desiredThrustsN[0] = mass * 9.81f / 4.f; // front left
-  cmd.desiredThrustsN[1] = mass * 9.81f / 4.f; // front right
-  cmd.desiredThrustsN[2] = mass * 9.81f / 4.f; // rear left
-  cmd.desiredThrustsN[3] = mass * 9.81f / 4.f; // rear right
+  cmd.desiredThrustsN[0] = (t1 + t2 + t3 + fTotal)/4.f;  // front left  - f1
+  cmd.desiredThrustsN[1] = (-t1 + t2 - t3 + fTotal)/4.f; // front right - f2
+  cmd.desiredThrustsN[2] = (t1 - t2 - t3 + fTotal)/4.f ; // rear left   - f4
+  cmd.desiredThrustsN[3] = (-t1 - t2 + t3 + fTotal)/4.f; // rear right  - f3
 
   /////////////////////////////// END STUDENT CODE ////////////////////////////
+
+  /*cout << "cmd.desiredThrustsN[0] : " << cmd.desiredThrustsN[0] << endl;
+  cout << "cmd.desiredThrustsN[1] : " << cmd.desiredThrustsN[1] << endl;
+  cout << "cmd.desiredThrustsN[2] : " << cmd.desiredThrustsN[2] << endl;
+  cout << "cmd.desiredThrustsN[3] : " << cmd.desiredThrustsN[3] << endl;*/
 
   return cmd;
 }
@@ -97,11 +108,14 @@ V3F QuadControl::BodyRateControl(V3F pqrCmd, V3F pqr)
   V3F momentCmd;
 
   ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
-
-  
-
+  // Get the error
+  V3F pqrError = pqrCmd - pqr;
+  // Multiple by the corresponding kp gains
+  V3F ubarPQR = kpPQR * pqrError;
+  V3F I_XYZ = V3F(Ixx, Iyy, - Izz);
+  // Set the moments
+  momentCmd = ubarPQR * I_XYZ;
   /////////////////////////////// END STUDENT CODE ////////////////////////////
-
   return momentCmd;
 }
 
@@ -128,8 +142,25 @@ V3F QuadControl::RollPitchControl(V3F accelCmd, Quaternion<float> attitude, floa
   Mat3x3F R = attitude.RotationMatrix_IwrtB();
 
   ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
+  if (collThrustCmd > 0.0) {
+    float accelXActual = R(0,2);
+    float accelYActual = R(1,2);
+    float accelZ = collThrustCmd / mass;
 
+    float accelXCommanded = CONSTRAIN(accelCmd.x / accelZ, -maxTiltAngle, maxTiltAngle);
+    float accelYCommanded = CONSTRAIN(accelCmd.y / accelZ, -maxTiltAngle, maxTiltAngle);
 
+    float accelXDot = kpBank * (accelXCommanded - accelXActual);
+    float accelYDot = kpBank * (accelYCommanded - accelYActual);
+
+    pqrCmd.x = (R(1,0) * accelXDot - R(0,0) * accelYDot) / R(2,2);
+    pqrCmd.y = (R(1,1) * accelXDot - R(0,1) * accelYDot) / R(2,2);
+  } else {
+    pqrCmd.x = 0.0;
+    pqrCmd.y = 0.0;
+  }
+
+  pqrCmd.z = 0.0;
 
   /////////////////////////////// END STUDENT CODE ////////////////////////////
 
