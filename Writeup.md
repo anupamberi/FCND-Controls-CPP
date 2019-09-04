@@ -108,6 +108,7 @@ Similarly for the y component, the control equations have the same form.
 
 The [LateralPosition method](./src/QuadControl.cpp:L208-L271) is modified as below,
 
+```
   ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
   V3F kpPos;
   kpPos.x = kpPosXY;
@@ -141,7 +142,7 @@ The [LateralPosition method](./src/QuadControl.cpp:L208-L271) is modified as bel
   }
 
   /////////////////////////////// END STUDENT CODE ////////////////////////////
- 
+ ```
  In the above code, notice that we constrain the commanded velocity and the actual velocity to `maxSpeedXY` and the calculated acceleration to `maxAccelXY`.
  
 ## Yaw Controller ##
